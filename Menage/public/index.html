@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ménage — listes à imprimer</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧹</text></svg>" />
+</head>
+<body>
+  <!-- ============ APP (masqué à l'impression) ============ -->
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">🧹 <span>Ménage</span></div>
+      <nav class="tabs">
+        <button class="tab is-active" data-tab="new">Nouvelle séance</button>
+        <button class="tab" data-tab="library">Bibliothèque</button>
+        <button class="tab" data-tab="history">Historique</button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- ---------- ONGLET : NOUVELLE SÉANCE ---------- -->
+      <section id="tab-new" class="panel is-active">
+        <div class="panel-head">
+          <div>
+            <h1>Nouvelle séance</h1>
+            <p class="muted">Cochez les tâches à effectuer, puis imprimez la liste.</p>
+          </div>
+        </div>
+
+        <div class="session-meta">
+          <label>Date
+            <input type="date" id="sess-date" />
+          </label>
+          <label>Titre (optionnel)
+            <input type="text" id="sess-title" placeholder="ex. Ménage hebdomadaire" />
+          </label>
+          <label class="grow">Note pour la personne (optionnel)
+            <input type="text" id="sess-note" placeholder="ex. insister sur la cuisine" />
+          </label>
+        </div>
+
+        <div class="toolbar">
+          <input type="search" id="new-search" placeholder="Rechercher une tâche…" />
+          <span class="count"><b id="sel-count">0</b> tâche(s) sélectionnée(s)</span>
+          <button class="btn ghost" id="clear-sel">Tout décocher</button>
+        </div>
+
+        <div id="new-list" class="rooms"></div>
+
+        <div class="sticky-actions">
+          <button class="btn primary" id="print-btn">🖨️ Imprimer</button>
+          <button class="btn" id="save-btn">Enregistrer la séance</button>
+        </div>
+      </section>
+
+      <!-- ---------- ONGLET : BIBLIOTHÈQUE ---------- -->
+      <section id="tab-library" class="panel">
+        <div class="panel-head">
+          <div>
+            <h1>Bibliothèque d'actions</h1>
+            <p class="muted">Ajoutez, modifiez ou supprimez les tâches disponibles.</p>
+          </div>
+        </div>
+
+        <form id="add-form" class="add-form">
+          <input type="text" id="add-label" placeholder="Nouvelle tâche (ex. Nettoyer le four)" required />
+          <input type="text" id="add-room" list="rooms-list" placeholder="Pièce (ex. Cuisine)" />
+          <datalist id="rooms-list"></datalist>
+          <button class="btn primary" type="submit">Ajouter</button>
+        </form>
+
+        <div id="library-list" class="rooms editable"></div>
+        <p id="library-empty" class="empty" hidden>
+          Aucune tâche pour l'instant. Ajoutez-en avec le formulaire ci-dessus.
+        </p>
+      </section>
+
+      <!-- ---------- ONGLET : HISTORIQUE ---------- -->
+      <section id="tab-history" class="panel">
+        <div class="panel-head">
+          <div>
+            <h1>Historique des séances</h1>
+            <p class="muted">Retrouvez chaque séance et cochez ce qui a réellement été fait.</p>
+          </div>
+        </div>
+        <div id="history-list" class="history"></div>
+        <p id="history-empty" class="empty" hidden>Aucune séance enregistrée pour l'instant.</p>
+      </section>
+    </main>
+  </div>
+
+  <!-- ============ FEUILLE IMPRIMABLE (visible à l'impression) ============ -->
+  <div id="print-area" aria-hidden="true"></div>
+
+  <!-- Détail d'une séance (modale) -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" id="modal-close" aria-label="Fermer">✕</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

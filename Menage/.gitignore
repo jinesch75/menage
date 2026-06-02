@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.log
+.DS_Store
+
+# Existing source files (kept locally, not needed by the app)
+Liste_menage.xlsx
+Liste_menage.pdf
+.~lock.*
