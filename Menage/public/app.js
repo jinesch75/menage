@@ -335,17 +335,23 @@ async function openSession(id) {
 }
 
 function showModal() {
+  // Never open an empty dialog.
+  if (!$("#modal-body").innerHTML.trim()) return;
   $("#modal").hidden = false;
 }
-$("#modal-close").addEventListener("click", () => {
-  $("#modal").hidden = true;
+function closeModal() {
+  const modal = $("#modal");
+  if (modal.hidden) return;
+  modal.hidden = true;
+  $("#modal-body").innerHTML = "";
   loadHistory(); // refresh progress rings
-});
+}
+$("#modal-close").addEventListener("click", closeModal);
 $("#modal").addEventListener("click", (e) => {
-  if (e.target.id === "modal") {
-    $("#modal").hidden = true;
-    loadHistory();
-  }
+  if (e.target.id === "modal") closeModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeModal();
 });
 
 /* ------------------------------ Boot ------------------------------ */

@@ -242,6 +242,9 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-colo
   display: grid; place-items: center;
   z-index: 40; padding: 16px;
 }
+/* The [hidden] attribute must win over the display rule above,
+   otherwise the dialog can never be closed. */
+.modal[hidden] { display: none; }
 .modal-card {
   background: #fff;
   border-radius: 14px;
