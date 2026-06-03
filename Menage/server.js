@@ -53,6 +53,38 @@ app.post(
   })
 );
 
+// Reorder tasks within a room: rewrite positions 0..n in the given order.
+app.put(
+  "/api/actions/reorder",
+  wrap(async (req, res) => {
+    const room = (req.body.room || "").trim();
+    const orderedIds = (Array.isArray(req.body.orderedIds) ? req.body.orderedIds : [])
+      .map(Number)
+      .filter(Number.isInteger);
+    if (!room || !orderedIds.length)
+      return res.status(400).json({ error: "room et orderedIds sont requis." });
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      let pos = 0;
+      for (const id of orderedIds) {
+        await client.query(
+          "UPDATE actions SET position = $1 WHERE id = $2 AND room = $3 AND active = TRUE",
+          [pos++, id, room]
+        );
+      }
+      await client.query("COMMIT");
+      res.json({ ok: true });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  })
+);
+
 app.put(
   "/api/actions/:id",
   wrap(async (req, res) => {

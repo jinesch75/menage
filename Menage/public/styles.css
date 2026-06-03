@@ -213,6 +213,31 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-colo
 .task:focus-within .task-del { opacity: 1; }
 .task-del:hover { background: #fdecea; color: var(--danger); }
 
+/* Reorder arrows (appear on hover) */
+.reorder {
+  display: flex;
+  gap: 3px;
+  flex: 0 0 auto;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.task:hover .reorder,
+.task:focus-within .reorder { opacity: 1; }
+.reorder button {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--navy-700);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  padding: 0;
+}
+.reorder button:hover:not(:disabled) { background: #eef2f7; }
+.reorder button:disabled { opacity: .3; cursor: default; }
+
 /* Add a new room */
 .add-room {
   display: flex;

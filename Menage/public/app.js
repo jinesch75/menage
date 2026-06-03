@@ -110,12 +110,20 @@ function renderNew() {
       </div>`;
 
     const body = $(".room-body", card);
-    for (const a of items) {
+    items.forEach((a, idx) => {
       const row = document.createElement("label");
       row.className = "task" + (selected.has(a.id) ? " checked" : "");
       row.innerHTML = `
         <input type="checkbox" ${selected.has(a.id) ? "checked" : ""} />
         <span class="label">${escapeHtml(a.label)}</span>
+        <span class="reorder">
+          <button class="task-up" type="button" title="Monter" aria-label="Monter" ${
+            idx === 0 ? "disabled" : ""
+          }>▲</button>
+          <button class="task-down" type="button" title="Descendre" aria-label="Descendre" ${
+            idx === items.length - 1 ? "disabled" : ""
+          }>▼</button>
+        </span>
         <button class="task-del" type="button" title="Supprimer cette tâche" aria-label="Supprimer">✕</button>`;
       const cb = $("input", row);
       cb.addEventListener("change", () => {
@@ -124,13 +132,24 @@ function renderNew() {
         updateCount();
         scheduleAutosave();
       });
-      $(".task-del", row).addEventListener("click", (e) => {
+      const stop = (e) => {
         e.preventDefault();
         e.stopPropagation();
+      };
+      $(".task-up", row).addEventListener("click", (e) => {
+        stop(e);
+        moveWithin(room, idx, -1);
+      });
+      $(".task-down", row).addEventListener("click", (e) => {
+        stop(e);
+        moveWithin(room, idx, +1);
+      });
+      $(".task-del", row).addEventListener("click", (e) => {
+        stop(e);
         deleteAction(a);
       });
       body.appendChild(row);
-    }
+    });
 
     const toggle = $(".room-toggle", card);
     if (toggle)
@@ -166,6 +185,33 @@ function renderNew() {
     );
     if (card) $(".add-task-input", card).focus();
     focusAddRoom = null;
+  }
+}
+
+// Move a task up (-1) or down (+1) within its room.
+function moveWithin(room, idx, delta) {
+  const items = actions.filter((a) => a.room === room);
+  const j = idx + delta;
+  if (j < 0 || j >= items.length) return;
+  const ids = items.map((x) => x.id);
+  [ids[idx], ids[j]] = [ids[j], ids[idx]];
+  reorderRoom(room, ids);
+}
+
+// Apply a new task order for a room: update locally for instant feedback, then persist.
+async function reorderRoom(room, orderedIds) {
+  const byId = new Map(actions.map((a) => [a.id, a]));
+  const ordered = orderedIds.map((id) => byId.get(id)).filter((a) => a && a.room === room);
+  let k = 0;
+  actions = actions.map((a) => (a.room === room ? ordered[k++] : a));
+  ordered.forEach((a, i) => (a.position = i));
+  renderNew();
+  try {
+    await api("PUT", "/api/actions/reorder", { room, orderedIds });
+  } catch (e) {
+    toast(e.message);
+    await loadActions();
+    renderNew();
   }
 }
 
