@@ -31,6 +31,13 @@ CREATE TABLE IF NOT EXISTS actions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS rooms (
+  id        SERIAL PRIMARY KEY,
+  name      TEXT NOT NULL UNIQUE,
+  position  INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS sessions (
   id         SERIAL PRIMARY KEY,
   session_date DATE NOT NULL,
@@ -56,13 +63,27 @@ CREATE INDEX IF NOT EXISTS idx_actions_room ON actions(room);
 async function init() {
   await pool.query(SCHEMA);
 
+  // Backfill the rooms table from any existing tasks (one-time, idempotent),
+  // so rooms created before this table existed are preserved.
+  await pool.query(`
+    INSERT INTO rooms (name, position)
+    SELECT room, (ROW_NUMBER() OVER (ORDER BY room)) - 1
+    FROM (SELECT DISTINCT room FROM actions WHERE active = TRUE) d
+    ON CONFLICT (name) DO NOTHING
+  `);
+
   // Optional one-time seed (default OFF — library starts empty).
   if (String(process.env.SEED_DEFAULT).toLowerCase() === "true") {
     const { rows } = await pool.query("SELECT COUNT(*)::int AS n FROM actions");
     if (rows[0].n === 0) {
       const seed = require("./seed-data");
       let pos = 0;
+      let roomPos = 0;
       for (const group of seed) {
+        await pool.query(
+          "INSERT INTO rooms (name, position) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING",
+          [group.room, roomPos++]
+        );
         for (const label of group.actions) {
           await pool.query(
             "INSERT INTO actions (label, room, position) VALUES ($1, $2, $3)",

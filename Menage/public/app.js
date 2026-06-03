@@ -65,14 +65,14 @@ $$(".tab").forEach((btn) =>
 );
 
 /* ====================== LISTE ACTUELLE ====================== */
-let extraRooms = []; // rooms added on the page but not yet backed by an action
+let roomList = []; // persistent list of rooms (from the server)
 let focusAddRoom = null; // room whose "add task" input should regain focus after render
 
-// Rooms shown on the page: those that have actions, plus any freshly added empty ones.
+// Rooms shown on the page, in saved order. Defensive union with any room
+// referenced by a task but somehow missing from the list.
 function roomsInOrder() {
-  const seen = [];
+  const seen = [...roomList];
   for (const a of actions) if (!seen.includes(a.room)) seen.push(a.room);
-  for (const r of extraRooms) if (!seen.includes(r)) seen.push(r);
   return seen;
 }
 
@@ -221,12 +221,11 @@ async function reorderRoom(room, orderedIds) {
   }
 }
 
-// Add a new task to a room (creates the room implicitly if it was empty).
+// Add a new task to a room.
 async function addActionToRoom(label, room) {
   try {
     await api("POST", "/api/actions", { label, room });
-    extraRooms = extraRooms.filter((r) => r !== room);
-    await loadActions();
+    await reloadRoomsAndActions();
     renderNew();
   } catch (e) {
     toast(e.message);
@@ -255,17 +254,9 @@ async function renameRoom(room) {
   if (input === null) return;
   const newRoom = input.trim();
   if (!newRoom || newRoom === room) return;
-
-  // Room added on the page but not yet saved (no tasks): rename locally.
-  if (!actions.some((a) => a.room === room)) {
-    extraRooms = [...new Set(extraRooms.map((r) => (r === room ? newRoom : r)))];
-    renderNew();
-    return;
-  }
   try {
     await api("PUT", "/api/rooms/rename", { oldRoom: room, newRoom });
-    extraRooms = extraRooms.filter((r) => r !== room);
-    await loadActions();
+    await reloadRoomsAndActions();
     renderNew();
   } catch (e) {
     toast(e.message);
@@ -280,16 +271,11 @@ async function deleteRoom(room) {
     : `Supprimer la pièce « ${room} » ?`;
   if (!confirm(msg)) return;
 
-  if (!items.length) {
-    extraRooms = extraRooms.filter((r) => r !== room);
-    renderNew();
-    return;
-  }
   const hadSelected = items.some((a) => selected.has(a.id));
   try {
     await api("DELETE", "/api/rooms", { room });
     items.forEach((a) => selected.delete(a.id));
-    await loadActions();
+    await reloadRoomsAndActions();
     renderNew();
     updateCount();
     if (hadSelected) scheduleAutosave();
@@ -298,17 +284,20 @@ async function deleteRoom(room) {
   }
 }
 
-// Add a new (empty) room to the page so tasks can be added to it.
-function addRoom() {
+// Add a new room. Saved immediately so it persists even before it has tasks.
+async function addRoom() {
   const input = $("#add-room-input");
   const name = input.value.trim();
   if (!name) return;
-  if (!extraRooms.includes(name) && !actions.some((a) => a.room === name)) {
-    extraRooms.push(name);
-  }
   input.value = "";
   focusAddRoom = name;
-  renderNew();
+  try {
+    await api("POST", "/api/rooms", { name });
+    await reloadRoomsAndActions();
+    renderNew();
+  } catch (e) {
+    toast(e.message);
+  }
 }
 $("#add-room-btn").addEventListener("click", addRoom);
 $("#add-room-input").addEventListener("keydown", (e) => {
@@ -500,6 +489,12 @@ function openListForDate(date) {
 async function loadActions() {
   actions = await api("GET", "/api/actions");
 }
+async function loadRooms() {
+  roomList = await api("GET", "/api/rooms");
+}
+async function reloadRoomsAndActions() {
+  await Promise.all([loadRooms(), loadActions()]);
+}
 
 // Local YYYY-MM-DD (avoids the UTC off-by-one that showed yesterday's date).
 function localISO(d) {
@@ -512,7 +507,7 @@ async function boot() {
   $("#sess-date").value = localISO(tomorrow);
   updateHeading();
   try {
-    await loadActions();
+    await reloadRoomsAndActions();
     await loadCurrentForDate();
   } catch (e) {
     toast("Connexion à la base impossible.");

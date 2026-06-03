@@ -44,6 +44,7 @@ app.post(
     const label = (req.body.label || "").trim();
     const room = (req.body.room || "Général").trim() || "Général";
     if (!label) return res.status(400).json({ error: "Le libellé est requis." });
+    await ensureRoom(room);
     const pos = await nextPosition(room);
     const { rows } = await pool.query(
       "INSERT INTO actions (label, room, position) VALUES ($1, $2, $3) RETURNING id, label, room, position",
@@ -119,7 +120,35 @@ async function nextPosition(room) {
 
 /* ------------------------------ ROOMS ------------------------------ */
 
-// Rename a room everywhere (library tasks + past-list snapshots stay consistent).
+// Make sure a room exists in the rooms table (added to the end if new).
+async function ensureRoom(name) {
+  await pool.query(
+    "INSERT INTO rooms (name, position) VALUES ($1, (SELECT COALESCE(MAX(position), -1) + 1 FROM rooms)) ON CONFLICT (name) DO NOTHING",
+    [name]
+  );
+}
+
+// List rooms in display order (persists even when a room has no tasks yet).
+app.get(
+  "/api/rooms",
+  wrap(async (req, res) => {
+    const { rows } = await pool.query("SELECT name FROM rooms ORDER BY position, name");
+    res.json(rows.map((r) => r.name));
+  })
+);
+
+// Create a room (so it is saved before any task is added to it).
+app.post(
+  "/api/rooms",
+  wrap(async (req, res) => {
+    const name = (req.body.name || "").trim();
+    if (!name) return res.status(400).json({ error: "Nom de pièce requis." });
+    await ensureRoom(name);
+    res.status(201).json({ ok: true, name });
+  })
+);
+
+// Rename a room everywhere (rooms table + library tasks + past-list snapshots).
 app.put(
   "/api/rooms/rename",
   wrap(async (req, res) => {
@@ -132,6 +161,16 @@ app.put(
       await client.query("BEGIN");
       await client.query("UPDATE actions SET room = $1 WHERE room = $2", [newRoom, oldRoom]);
       await client.query("UPDATE session_items SET room = $1 WHERE room = $2", [newRoom, oldRoom]);
+      // Keep the old room's position; if the new name already exists, this merges them.
+      const posRow = await client.query("SELECT position FROM rooms WHERE name = $1", [oldRoom]);
+      await client.query("DELETE FROM rooms WHERE name = $1", [oldRoom]);
+      const position = posRow.rows.length
+        ? posRow.rows[0].position
+        : (await client.query("SELECT COALESCE(MAX(position), -1) + 1 AS p FROM rooms")).rows[0].p;
+      await client.query(
+        "INSERT INTO rooms (name, position) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING",
+        [newRoom, position]
+      );
       await client.query("COMMIT");
       res.json({ ok: true });
     } catch (e) {
@@ -143,14 +182,26 @@ app.put(
   })
 );
 
-// Delete a room: soft-delete its tasks (past lists keep their snapshots).
+// Delete a room: remove it from the rooms table and soft-delete its tasks
+// (past lists keep their snapshots).
 app.delete(
   "/api/rooms",
   wrap(async (req, res) => {
     const room = (req.body.room || "").trim();
     if (!room) return res.status(400).json({ error: "Nom de pièce requis." });
-    await pool.query("UPDATE actions SET active = FALSE WHERE room = $1", [room]);
-    res.json({ ok: true });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("UPDATE actions SET active = FALSE WHERE room = $1", [room]);
+      await client.query("DELETE FROM rooms WHERE name = $1", [room]);
+      await client.query("COMMIT");
+      res.json({ ok: true });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
   })
 );
 
