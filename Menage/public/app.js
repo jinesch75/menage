@@ -58,42 +58,65 @@ const selected = new Set();
 function switchTab(name) {
   $$(".tab").forEach((b) => b.classList.toggle("is-active", b.dataset.tab === name));
   $$(".panel").forEach((p) => p.classList.toggle("is-active", p.id === "tab-" + name));
-  if (name === "library") renderLibrary();
   if (name === "history") loadHistory();
 }
 $$(".tab").forEach((btn) =>
   btn.addEventListener("click", () => switchTab(btn.dataset.tab))
 );
 
-/* ====================== NOUVELLE SÉANCE ====================== */
+/* ====================== LISTE ACTUELLE ====================== */
+let extraRooms = []; // rooms added on the page but not yet backed by an action
+let focusAddRoom = null; // room whose "add task" input should regain focus after render
+
+// Rooms shown on the page: those that have actions, plus any freshly added empty ones.
+function roomsInOrder() {
+  const seen = [];
+  for (const a of actions) if (!seen.includes(a.room)) seen.push(a.room);
+  for (const r of extraRooms) if (!seen.includes(r)) seen.push(r);
+  return seen;
+}
+
 function renderNew() {
   const list = $("#new-list");
-  const groups = groupByRoom(actions);
+  list.innerHTML = "";
+  const rooms = roomsInOrder();
 
-  if (!actions.length) {
+  if (!rooms.length) {
     list.innerHTML =
-      '<p class="empty">La bibliothèque est vide. Allez dans l\'onglet <b>Bibliothèque</b> pour ajouter des tâches.</p>';
+      '<p class="rooms-hint">Aucune pièce pour l\'instant. Ajoutez-en une ci-dessous pour commencer.</p>';
     return;
   }
 
-  list.innerHTML = "";
-  for (const [room, items] of groups) {
-    const allChecked = items.every((a) => selected.has(a.id));
+  for (const room of rooms) {
+    const items = actions.filter((a) => a.room === room);
+    const allChecked = items.length > 0 && items.every((a) => selected.has(a.id));
     const card = document.createElement("div");
     card.className = "room-card";
     card.innerHTML = `
       <div class="room-title">
         <span>${escapeHtml(room)}</span>
-        <button class="btn ghost small room-toggle">${allChecked ? "Décocher" : "Tout cocher"}</button>
+        ${
+          items.length
+            ? `<button class="btn ghost small room-toggle">${allChecked ? "Décocher" : "Tout cocher"}</button>`
+            : ""
+        }
       </div>
-      <div class="room-body"></div>`;
+      <div class="room-body"></div>
+      <div class="room-add">
+        <input type="text" class="add-task-input" placeholder="Ajouter une tâche dans « ${escapeHtml(
+          room
+        )} »…" />
+        <button class="btn small add-task-btn">Ajouter</button>
+      </div>`;
+
     const body = $(".room-body", card);
     for (const a of items) {
       const row = document.createElement("label");
       row.className = "task" + (selected.has(a.id) ? " checked" : "");
       row.innerHTML = `
         <input type="checkbox" ${selected.has(a.id) ? "checked" : ""} />
-        <span class="label">${escapeHtml(a.label)}</span>`;
+        <span class="label">${escapeHtml(a.label)}</span>
+        <button class="task-del" type="button" title="Supprimer cette tâche" aria-label="Supprimer">✕</button>`;
       const cb = $("input", row);
       cb.addEventListener("change", () => {
         cb.checked ? selected.add(a.id) : selected.delete(a.id);
@@ -101,18 +124,98 @@ function renderNew() {
         updateCount();
         scheduleAutosave();
       });
+      $(".task-del", row).addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteAction(a);
+      });
       body.appendChild(row);
     }
-    $(".room-toggle", card).addEventListener("click", () => {
-      const turnOn = !allChecked;
-      items.forEach((a) => (turnOn ? selected.add(a.id) : selected.delete(a.id)));
-      renderNew();
-      updateCount();
-      scheduleAutosave();
+
+    const toggle = $(".room-toggle", card);
+    if (toggle)
+      toggle.addEventListener("click", () => {
+        const turnOn = !allChecked;
+        items.forEach((a) => (turnOn ? selected.add(a.id) : selected.delete(a.id)));
+        renderNew();
+        updateCount();
+        scheduleAutosave();
+      });
+
+    const addInput = $(".add-task-input", card);
+    const submitTask = () => {
+      const label = addInput.value.trim();
+      if (!label) return;
+      focusAddRoom = room;
+      addActionToRoom(label, room);
+    };
+    $(".add-task-btn", card).addEventListener("click", submitTask);
+    addInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submitTask();
+      }
     });
+
     list.appendChild(card);
   }
+
+  if (focusAddRoom) {
+    const card = [...list.querySelectorAll(".room-card")].find(
+      (c) => $(".room-title span", c) && $(".room-title span", c).textContent === focusAddRoom
+    );
+    if (card) $(".add-task-input", card).focus();
+    focusAddRoom = null;
+  }
 }
+
+// Add a new task to a room (creates the room implicitly if it was empty).
+async function addActionToRoom(label, room) {
+  try {
+    await api("POST", "/api/actions", { label, room });
+    extraRooms = extraRooms.filter((r) => r !== room);
+    await loadActions();
+    renderNew();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+// Remove a task. Soft-deleted server-side, so past lists keep it.
+async function deleteAction(a) {
+  if (!confirm(`Supprimer la tâche « ${a.label} » ?`)) return;
+  const wasSelected = selected.has(a.id);
+  try {
+    await api("DELETE", `/api/actions/${a.id}`);
+    selected.delete(a.id);
+    await loadActions();
+    renderNew();
+    updateCount();
+    if (wasSelected) scheduleAutosave();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+// Add a new (empty) room to the page so tasks can be added to it.
+function addRoom() {
+  const input = $("#add-room-input");
+  const name = input.value.trim();
+  if (!name) return;
+  if (!extraRooms.includes(name) && !actions.some((a) => a.room === name)) {
+    extraRooms.push(name);
+  }
+  input.value = "";
+  focusAddRoom = name;
+  renderNew();
+}
+$("#add-room-btn").addEventListener("click", addRoom);
+$("#add-room-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    addRoom();
+  }
+});
 
 function updateCount() {
   $("#sel-count").textContent = selected.size;
@@ -219,87 +322,6 @@ function buildPrintArea() {
     </div>
     <div class="print-rooms">${rooms}</div>
     <div class="print-footer">Liste de ménage — à cocher pendant la séance</div>`;
-}
-
-/* ====================== BIBLIOTHÈQUE ====================== */
-function renderLibrary() {
-  const list = $("#library-list");
-  const groups = groupByRoom(actions);
-  $("#library-empty").hidden = actions.length > 0;
-  refreshRoomDatalist();
-
-  list.innerHTML = "";
-  for (const [room, items] of groups) {
-    const card = document.createElement("div");
-    card.className = "room-card";
-    card.innerHTML = `<div class="room-title"><span>${escapeHtml(room)}</span>
-      <span class="muted" style="font-weight:500">${items.length}</span></div>
-      <div class="room-body"></div>`;
-    const body = $(".room-body", card);
-    for (const a of items) {
-      const row = document.createElement("div");
-      row.className = "task";
-      row.innerHTML = `
-        <span class="label">${escapeHtml(a.label)}</span>
-        <span class="row-actions">
-          <button class="btn ghost small edit">Modifier</button>
-          <button class="btn danger small del">Supprimer</button>
-        </span>`;
-      $(".edit", row).addEventListener("click", () => editAction(a));
-      $(".del", row).addEventListener("click", () => deleteAction(a));
-      body.appendChild(row);
-    }
-    list.appendChild(card);
-  }
-}
-
-function refreshRoomDatalist() {
-  const rooms = [...new Set(actions.map((a) => a.room))].sort();
-  $("#rooms-list").innerHTML = rooms.map((r) => `<option value="${escapeHtml(r)}">`).join("");
-}
-
-$("#add-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const label = $("#add-label").value.trim();
-  const room = $("#add-room").value.trim() || "Général";
-  if (!label) return;
-  try {
-    await api("POST", "/api/actions", { label, room });
-    $("#add-label").value = "";
-    await loadActions();
-    renderLibrary();
-    toast("Tâche ajoutée ✓");
-  } catch (err) {
-    toast(err.message);
-  }
-});
-
-async function editAction(a) {
-  const label = prompt("Modifier la tâche :", a.label);
-  if (label === null) return;
-  const room = prompt("Pièce :", a.room);
-  if (room === null) return;
-  try {
-    await api("PUT", `/api/actions/${a.id}`, { label: label.trim(), room: room.trim() });
-    await loadActions();
-    renderLibrary();
-    toast("Modifié ✓");
-  } catch (err) {
-    toast(err.message);
-  }
-}
-
-async function deleteAction(a) {
-  if (!confirm(`Supprimer « ${a.label} » ?`)) return;
-  try {
-    await api("DELETE", `/api/actions/${a.id}`);
-    selected.delete(a.id);
-    await loadActions();
-    renderLibrary();
-    toast("Supprimé");
-  } catch (err) {
-    toast(err.message);
-  }
 }
 
 /* ====================== LISTES PRÉCÉDENTES (matrice) ====================== */

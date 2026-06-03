@@ -13,8 +13,7 @@
     <header class="topbar">
       <div class="brand">🧹 <span>Ménage</span></div>
       <nav class="tabs">
-        <button class="tab is-active" data-tab="new">Nouvelle séance</button>
-        <button class="tab" data-tab="library">Modifier la liste des tâches ménagères</button>
+        <button class="tab is-active" data-tab="new">Liste actuelle</button>
         <button class="tab" data-tab="history">Listes précédentes</button>
       </nav>
     </header>
@@ -42,32 +41,15 @@
 
         <div id="new-list" class="rooms"></div>
 
+        <div class="add-room">
+          <input type="text" id="add-room-input" placeholder="Ajouter une pièce (ex. Garage)…" />
+          <button class="btn" id="add-room-btn" type="button">+ Ajouter une pièce</button>
+        </div>
+
         <div class="sticky-actions">
           <span class="save-status" id="save-status"></span>
           <button class="btn primary" id="print-btn">🖨️ Imprimer</button>
         </div>
-      </section>
-
-      <!-- ---------- ONGLET : BIBLIOTHÈQUE ---------- -->
-      <section id="tab-library" class="panel">
-        <div class="panel-head">
-          <div>
-            <h1>Modifier la liste des tâches ménagères</h1>
-            <p class="muted">Ajoutez, modifiez ou supprimez les tâches disponibles.</p>
-          </div>
-        </div>
-
-        <form id="add-form" class="add-form">
-          <input type="text" id="add-label" placeholder="Nouvelle tâche (ex. Nettoyer le four)" required />
-          <input type="text" id="add-room" list="rooms-list" placeholder="Pièce (ex. Cuisine)" />
-          <datalist id="rooms-list"></datalist>
-          <button class="btn primary" type="submit">Ajouter</button>
-        </form>
-
-        <div id="library-list" class="rooms editable"></div>
-        <p id="library-empty" class="empty" hidden>
-          Aucune tâche pour l'instant. Ajoutez-en avec le formulaire ci-dessus.
-        </p>
       </section>
 
       <!-- ---------- ONGLET : LISTES PRÉCÉDENTES ---------- -->
