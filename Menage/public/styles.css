@@ -72,7 +72,7 @@ h1 { font-size: 24px; margin: 0 0 2px; color: var(--navy-700); }
   flex-wrap: wrap;
 }
 .title-line h1 { margin: 0; }
-.title-date {
+input[type="date"].title-date {
   width: auto;
   flex: 0 0 auto;
   padding: 7px 10px;
