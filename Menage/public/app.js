@@ -41,15 +41,6 @@ function frenchDate(iso) {
   });
 }
 
-function groupByRoom(items) {
-  const map = new Map();
-  for (const it of items) {
-    if (!map.has(it.room)) map.set(it.room, []);
-    map.get(it.room).push(it);
-  }
-  return map;
-}
-
 /* ------------------------------ State ------------------------------ */
 let actions = [];
 const selected = new Set();
@@ -432,10 +423,12 @@ function buildPrintArea() {
   const date = $("#sess-date").value;
   const title = "Liste de tâches ménagères";
   const chosen = actions.filter((a) => selected.has(a.id));
-  const groups = groupByRoom(chosen);
 
+  // Same room/task order as the main page.
   let rooms = "";
-  for (const [room, items] of groups) {
+  for (const room of roomsInOrder()) {
+    const items = chosen.filter((a) => a.room === room);
+    if (!items.length) continue;
     rooms += `<div class="print-room"><h2>${escapeHtml(room)}</h2>`;
     for (const a of items) {
       rooms += `<div class="print-task"><span class="print-box"></span><span>${escapeHtml(
