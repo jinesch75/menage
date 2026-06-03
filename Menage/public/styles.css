@@ -430,6 +430,23 @@ td.cell .chk {
 }
 table.matrix tbody tr:hover td.cell { background: #f6f8fb; }
 
+/* On phones, narrow the task column (labels wrap) so more date columns fit */
+@media (max-width: 600px) {
+  table.matrix { font-size: 13px; }
+  .corner, .task-cell {
+    min-width: 118px;
+    max-width: 150px;
+    padding: 7px 8px;
+    line-height: 1.25;
+    word-break: break-word;
+  }
+  table.matrix thead th { padding: 7px 6px; font-size: 12px; }
+  .date-col .date-label { white-space: normal; }
+  td.cell { min-width: 44px; padding: 6px 6px; }
+  td.cell .chk { font-size: 15px; }
+  .room-row .room-cell { font-size: 12px; padding: 6px 8px; }
+}
+
 /* ----------------------------- Sticky actions ----------------------------- */
 .sticky-actions {
   position: fixed;
