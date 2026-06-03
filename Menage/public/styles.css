@@ -484,7 +484,9 @@ table.matrix tbody tr:hover td.cell { background: #f6f8fb; }
 @media print {
   #app, .sticky-actions, .modal, .toast { display: none !important; }
   body { background: #fff; }
-  #print-area { display: block; }
+  /* Zero page margin removes the band where the browser prints its
+     header/footer; we add our own padding inside the sheet instead. */
+  #print-area { display: block; padding: 14mm; }
 
   .print-header { border-bottom: 2px solid var(--navy); padding-bottom: 8px; margin-bottom: 14px; }
   .print-header h1 { font-size: 26px; color: var(--navy); margin: 0; }
@@ -502,6 +504,5 @@ table.matrix tbody tr:hover td.cell { background: #f6f8fb; }
     width: 12px; height: 12px; border: 1.4px solid #555; border-radius: 2px;
     flex: 0 0 auto; display: inline-block; transform: translateY(1px);
   }
-  .print-footer { margin-top: 16px; font-size: 11px; color: #888; text-align: center; }
-  @page { margin: 14mm; }
+  @page { margin: 0; }
 }
