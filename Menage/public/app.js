@@ -416,12 +416,21 @@ $("#sess-date").addEventListener("change", () => {
 $("#print-btn").addEventListener("click", () => {
   if (!selected.size) return toast("Sélectionnez au moins une tâche.");
   buildPrintArea();
+  // Blank the page title during printing so the browser's header doesn't show it.
+  const prevTitle = document.title;
+  document.title = " ";
+  const restore = () => {
+    document.title = prevTitle;
+    window.removeEventListener("afterprint", restore);
+  };
+  window.addEventListener("afterprint", restore);
   window.print();
+  setTimeout(restore, 1000);
 });
 
 function buildPrintArea() {
   const date = $("#sess-date").value;
-  const title = sessionTitle();
+  const title = "Liste de tâches ménagères";
   const chosen = actions.filter((a) => selected.has(a.id));
   const groups = groupByRoom(chosen);
 
@@ -441,11 +450,9 @@ function buildPrintArea() {
       <h1>${escapeHtml(title)}</h1>
       <div class="print-meta">
         <span><b>Date :</b> ${date ? frenchDate(date) : "____________________"}</span>
-        <span><b>Tâches :</b> ${chosen.length}</span>
       </div>
     </div>
-    <div class="print-rooms">${rooms}</div>
-    <div class="print-footer">Liste de ménage — à cocher pendant la séance</div>`;
+    <div class="print-rooms">${rooms}</div>`;
 }
 
 /* ====================== LISTES PRÉCÉDENTES (matrice) ====================== */
