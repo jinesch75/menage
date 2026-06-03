@@ -117,6 +117,43 @@ async function nextPosition(room) {
   return rows[0].p;
 }
 
+/* ------------------------------ ROOMS ------------------------------ */
+
+// Rename a room everywhere (library tasks + past-list snapshots stay consistent).
+app.put(
+  "/api/rooms/rename",
+  wrap(async (req, res) => {
+    const oldRoom = (req.body.oldRoom || "").trim();
+    const newRoom = (req.body.newRoom || "").trim();
+    if (!oldRoom || !newRoom)
+      return res.status(400).json({ error: "Ancien et nouveau nom requis." });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("UPDATE actions SET room = $1 WHERE room = $2", [newRoom, oldRoom]);
+      await client.query("UPDATE session_items SET room = $1 WHERE room = $2", [newRoom, oldRoom]);
+      await client.query("COMMIT");
+      res.json({ ok: true });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  })
+);
+
+// Delete a room: soft-delete its tasks (past lists keep their snapshots).
+app.delete(
+  "/api/rooms",
+  wrap(async (req, res) => {
+    const room = (req.body.room || "").trim();
+    if (!room) return res.status(400).json({ error: "Nom de pièce requis." });
+    await pool.query("UPDATE actions SET active = FALSE WHERE room = $1", [room]);
+    res.json({ ok: true });
+  })
+);
+
 /* ----------------------------- SESSIONS ---------------------------- */
 
 // List sessions with progress summary.

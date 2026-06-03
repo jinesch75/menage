@@ -160,6 +160,23 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-colo
   align-items: center;
 }
 .room-body { padding: 6px 8px; }
+.room-name { display: inline-flex; align-items: center; gap: 6px; }
+.room-rename, .room-del {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 5px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity .15s, background .15s, color .15s;
+}
+.room-card:hover .room-rename,
+.room-card:hover .room-del { opacity: 1; }
+.room-rename:hover { background: #dde6f1; color: var(--navy-700); }
+.room-del:hover { background: #fdecea; color: var(--danger); }
 
 .task {
   display: flex;

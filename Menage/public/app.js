@@ -94,7 +94,10 @@ function renderNew() {
     card.className = "room-card";
     card.innerHTML = `
       <div class="room-title">
-        <span>${escapeHtml(room)}</span>
+        <span class="room-name">${escapeHtml(room)}
+          <button class="room-rename" type="button" title="Renommer la pièce" aria-label="Renommer">✎</button>
+          <button class="room-del" type="button" title="Supprimer la pièce" aria-label="Supprimer la pièce">🗑</button>
+        </span>
         ${
           items.length
             ? `<button class="btn ghost small room-toggle">${allChecked ? "Décocher" : "Tout cocher"}</button>`
@@ -160,6 +163,9 @@ function renderNew() {
         updateCount();
         scheduleAutosave();
       });
+
+    $(".room-rename", card).addEventListener("click", () => renameRoom(room));
+    $(".room-del", card).addEventListener("click", () => deleteRoom(room));
 
     const addInput = $(".add-task-input", card);
     const submitTask = () => {
@@ -238,6 +244,55 @@ async function deleteAction(a) {
     renderNew();
     updateCount();
     if (wasSelected) scheduleAutosave();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+// Rename a room (updates its tasks and past-list labels).
+async function renameRoom(room) {
+  const input = prompt("Nouveau nom de la pièce :", room);
+  if (input === null) return;
+  const newRoom = input.trim();
+  if (!newRoom || newRoom === room) return;
+
+  // Room added on the page but not yet saved (no tasks): rename locally.
+  if (!actions.some((a) => a.room === room)) {
+    extraRooms = [...new Set(extraRooms.map((r) => (r === room ? newRoom : r)))];
+    renderNew();
+    return;
+  }
+  try {
+    await api("PUT", "/api/rooms/rename", { oldRoom: room, newRoom });
+    extraRooms = extraRooms.filter((r) => r !== room);
+    await loadActions();
+    renderNew();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+// Delete a room and its tasks (kept in past lists via snapshots).
+async function deleteRoom(room) {
+  const items = actions.filter((a) => a.room === room);
+  const msg = items.length
+    ? `Supprimer la pièce « ${room} » et ses ${items.length} tâche(s) ?`
+    : `Supprimer la pièce « ${room} » ?`;
+  if (!confirm(msg)) return;
+
+  if (!items.length) {
+    extraRooms = extraRooms.filter((r) => r !== room);
+    renderNew();
+    return;
+  }
+  const hadSelected = items.some((a) => selected.has(a.id));
+  try {
+    await api("DELETE", "/api/rooms", { room });
+    items.forEach((a) => selected.delete(a.id));
+    await loadActions();
+    renderNew();
+    updateCount();
+    if (hadSelected) scheduleAutosave();
   } catch (e) {
     toast(e.message);
   }
