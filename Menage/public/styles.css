@@ -270,13 +270,28 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-colo
 .reorder button:hover:not(:disabled) { background: #eef2f7; }
 .reorder button:disabled { opacity: .3; cursor: default; }
 
-/* Add a new room */
+/* Add a new room — visually separated from the room list above */
+.add-room-section {
+  margin-top: 32px;
+  padding: 18px;
+  background: #eef2f7;
+  border: 1px dashed #c4d0e0;
+  border-radius: var(--radius);
+}
+.add-room-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
 .add-room {
   display: flex;
   gap: 8px;
-  margin-top: 16px;
 }
-.add-room input { flex: 1; }
+.add-room input { flex: 1; background: #fff; }
+.add-room input:focus { outline: 2px solid var(--accent); }
 
 .rooms-hint {
   text-align: center;
