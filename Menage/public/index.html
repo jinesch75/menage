@@ -14,8 +14,8 @@
       <div class="brand">🧹 <span>Ménage</span></div>
       <nav class="tabs">
         <button class="tab is-active" data-tab="new">Nouvelle séance</button>
-        <button class="tab" data-tab="library">Bibliothèque</button>
-        <button class="tab" data-tab="history">Historique</button>
+        <button class="tab" data-tab="library">Modifier la liste des tâches ménagères</button>
+        <button class="tab" data-tab="history">Listes précédentes</button>
       </nav>
     </header>
 
@@ -52,7 +52,7 @@
       <section id="tab-library" class="panel">
         <div class="panel-head">
           <div>
-            <h1>Bibliothèque d'actions</h1>
+            <h1>Modifier la liste des tâches ménagères</h1>
             <p class="muted">Ajoutez, modifiez ou supprimez les tâches disponibles.</p>
           </div>
         </div>
@@ -70,30 +70,22 @@
         </p>
       </section>
 
-      <!-- ---------- ONGLET : HISTORIQUE ---------- -->
+      <!-- ---------- ONGLET : LISTES PRÉCÉDENTES ---------- -->
       <section id="tab-history" class="panel">
         <div class="panel-head">
           <div>
-            <h1>Historique des séances</h1>
-            <p class="muted">Retrouvez chaque séance et cochez ce qui a réellement été fait.</p>
+            <h1>Listes précédentes</h1>
+            <p class="muted">Les dates en colonnes, les tâches en lignes. Cliquez sur une date pour rouvrir et modifier cette liste.</p>
           </div>
         </div>
-        <div id="history-list" class="history"></div>
-        <p id="history-empty" class="empty" hidden>Aucune séance enregistrée pour l'instant.</p>
+        <div id="history-table" class="matrix-wrap"></div>
+        <p id="history-empty" class="empty" hidden>Aucune liste enregistrée pour l'instant.</p>
       </section>
     </main>
   </div>
 
   <!-- ============ FEUILLE IMPRIMABLE (visible à l'impression) ============ -->
   <div id="print-area" aria-hidden="true"></div>
-
-  <!-- Détail d'une séance (modale) -->
-  <div id="modal" class="modal" hidden>
-    <div class="modal-card">
-      <button class="modal-close" id="modal-close" aria-label="Fermer">✕</button>
-      <div id="modal-body"></div>
-    </div>
-  </div>
 
   <div id="toast" class="toast" hidden></div>
 

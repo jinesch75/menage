@@ -146,6 +146,43 @@ app.post(
   })
 );
 
+// Matrix view: dates as columns, tasks as rows, a mark where a task was on
+// that date's list (and whether it was marked done).
+app.get(
+  "/api/matrix",
+  wrap(async (req, res) => {
+    const sessions = (
+      await pool.query(
+        "SELECT id, to_char(session_date, 'YYYY-MM-DD') AS date, title FROM sessions ORDER BY session_date ASC, id ASC"
+      )
+    ).rows;
+    const items = (
+      await pool.query("SELECT session_id, label, room, position, done FROM session_items")
+    ).rows;
+
+    const SEP2 = "|~|";
+    const rowMap = new Map(); // room|label -> {room, label, minPos}
+    const cells = {};
+    for (const it of items) {
+      const rk = it.room + SEP2 + it.label;
+      const ex = rowMap.get(rk);
+      if (!ex || it.position < ex.minPos)
+        rowMap.set(rk, { room: it.room, label: it.label, minPos: it.position });
+      cells[it.session_id + SEP2 + rk] = it.done ? "done" : "todo";
+    }
+    const rows = [...rowMap.values()]
+      .sort(
+        (a, b) =>
+          a.room.localeCompare(b.room, "fr") ||
+          a.minPos - b.minPos ||
+          a.label.localeCompare(b.label, "fr")
+      )
+      .map(({ room, label }) => ({ room, label }));
+
+    res.json({ sessions, rows, cells });
+  })
+);
+
 // Auto-save: find the (latest) session for a given date, with its items.
 app.get(
   "/api/sessions/by-date/:date",

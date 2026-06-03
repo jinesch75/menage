@@ -55,14 +55,14 @@ let actions = [];
 const selected = new Set();
 
 /* ------------------------------ Tabs ------------------------------ */
+function switchTab(name) {
+  $$(".tab").forEach((b) => b.classList.toggle("is-active", b.dataset.tab === name));
+  $$(".panel").forEach((p) => p.classList.toggle("is-active", p.id === "tab-" + name));
+  if (name === "library") renderLibrary();
+  if (name === "history") loadHistory();
+}
 $$(".tab").forEach((btn) =>
-  btn.addEventListener("click", () => {
-    $$(".tab").forEach((b) => b.classList.toggle("is-active", b === btn));
-    const name = btn.dataset.tab;
-    $$(".panel").forEach((p) => p.classList.toggle("is-active", p.id === "tab-" + name));
-    if (name === "library") renderLibrary();
-    if (name === "history") loadHistory();
-  })
+  btn.addEventListener("click", () => switchTab(btn.dataset.tab))
 );
 
 /* ====================== NOUVELLE SÉANCE ====================== */
@@ -302,94 +302,79 @@ async function deleteAction(a) {
   }
 }
 
-/* ====================== HISTORIQUE ====================== */
+/* ====================== LISTES PRÉCÉDENTES (matrice) ====================== */
+const MSEP = "|~|"; // must match the server's separator
+
+function shortDate(iso) {
+  return new Date(iso + "T00:00:00").toLocaleDateString("fr-FR", {
+    weekday: "short",
+    day: "numeric",
+    month: "numeric",
+  });
+}
+
 async function loadHistory() {
-  const list = $("#history-list");
-  list.innerHTML = '<p class="muted">Chargement…</p>';
+  const wrap = $("#history-table");
   try {
-    const sessions = await api("GET", "/api/sessions");
-    $("#history-empty").hidden = sessions.length > 0;
-    list.innerHTML = "";
-    for (const s of sessions) {
-      const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
-      const card = document.createElement("div");
-      card.className = "hist-card";
-      card.innerHTML = `
-        <div class="progress" style="--p:${pct}"><span>${pct}%</span></div>
-        <div class="hist-main">
-          <div class="hist-date">${escapeHtml(s.title || "Séance")} — ${frenchDate(
-        s.session_date.slice(0, 10)
-      )}</div>
-          <div class="hist-sub">${s.done}/${s.total} tâche(s) faite(s)${
-        s.note ? " · " + escapeHtml(s.note) : ""
-      }</div>
-        </div>
-        <button class="btn danger small del">Supprimer</button>`;
-      card.addEventListener("click", (e) => {
-        if (e.target.closest(".del")) return;
-        openSession(s.id);
-      });
-      $(".del", card).addEventListener("click", async (e) => {
-        e.stopPropagation();
-        if (!confirm("Supprimer cette séance ?")) return;
-        await api("DELETE", `/api/sessions/${s.id}`);
-        loadHistory();
-      });
-      list.appendChild(card);
-    }
+    const data = await api("GET", "/api/matrix");
+    renderMatrix(data);
   } catch (e) {
-    list.innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;
+    wrap.innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;
   }
 }
 
-async function openSession(id) {
-  const s = await api("GET", `/api/sessions/${id}`);
-  const groups = groupByRoom(s.items);
-  let html = `<h1>${escapeHtml(s.title || "Séance")}</h1>
-    <p class="muted">${frenchDate(s.session_date.slice(0, 10))}${
-    s.note ? " · " + escapeHtml(s.note) : ""
-  }</p><div class="rooms" style="margin-top:14px">`;
-  for (const [room, items] of groups) {
-    html += `<div class="room-card"><div class="room-title"><span>${escapeHtml(
-      room
-    )}</span></div><div class="room-body">`;
-    for (const it of items) {
-      html += `<label class="task${it.done ? " checked" : ""}">
-        <input type="checkbox" data-item="${it.id}" ${it.done ? "checked" : ""} />
-        <span class="label">${escapeHtml(it.label)}</span></label>`;
+function renderMatrix(data) {
+  const wrap = $("#history-table");
+  $("#history-empty").hidden = data.sessions.length > 0;
+  if (!data.sessions.length) {
+    wrap.innerHTML = "";
+    return;
+  }
+
+  let html =
+    '<table class="matrix"><thead><tr><th class="corner">Tâche</th>';
+  for (const s of data.sessions) {
+    html += `<th class="date-col" data-date="${s.date}" title="${escapeHtml(
+      s.title || ""
+    )} — cliquer pour rouvrir">${escapeHtml(shortDate(s.date))}</th>`;
+  }
+  html += "</tr></thead><tbody>";
+
+  let lastRoom = null;
+  for (const r of data.rows) {
+    if (r.room !== lastRoom) {
+      lastRoom = r.room;
+      html += `<tr class="room-row"><td class="room-cell" colspan="${
+        data.sessions.length + 1
+      }">${escapeHtml(r.room)}</td></tr>`;
     }
-    html += `</div></div>`;
+    html += `<tr><th class="task-cell">${escapeHtml(r.label)}</th>`;
+    for (const s of data.sessions) {
+      const on = data.cells[s.id + MSEP + r.room + MSEP + r.label];
+      html += `<td class="cell">${on ? '<span class="chk">✓</span>' : ""}</td>`;
+    }
+    html += "</tr>";
   }
-  html += `</div>`;
-  $("#modal-body").innerHTML = html;
-  $$("#modal-body input[type=checkbox]").forEach((cb) =>
-    cb.addEventListener("change", async () => {
-      cb.closest(".task").classList.toggle("checked", cb.checked);
-      await api("PUT", `/api/sessions/${id}/items/${cb.dataset.item}`, { done: cb.checked });
-    })
+  html += "</tbody></table>";
+  wrap.innerHTML = html;
+
+  $$(".matrix .date-col").forEach((th) =>
+    th.addEventListener("click", () => openListForDate(th.dataset.date))
   );
-  showModal();
 }
 
-function showModal() {
-  // Never open an empty dialog.
-  if (!$("#modal-body").innerHTML.trim()) return;
-  $("#modal").hidden = false;
+// Click a date column -> go back to the generator with that day's list loaded.
+function openListForDate(date) {
+  switchTab("new");
+  $("#sess-date").value = date;
+  updateHeading();
+  loadCurrentForDate();
 }
-function closeModal() {
-  const modal = $("#modal");
-  if (modal.hidden) return;
-  modal.hidden = true;
-  $("#modal-body").innerHTML = "";
-  loadHistory(); // refresh progress rings
-}
-$("#modal-close").addEventListener("click", closeModal);
-$("#modal").addEventListener("click", (e) => {
-  if (e.target.id === "modal") closeModal();
-});
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeModal();
-});
+
+// Keep the matrix fresh while it is being viewed.
+setInterval(() => {
+  if ($("#tab-history").classList.contains("is-active")) loadHistory();
+}, 4000);
 
 /* ------------------------------ Boot ------------------------------ */
 async function loadActions() {

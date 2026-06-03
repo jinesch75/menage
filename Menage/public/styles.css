@@ -220,6 +220,82 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-colo
   font-size: 12px; font-weight: 700; color: var(--navy-700);
 }
 
+/* ----------------------------- Matrix (Listes précédentes) ----------------------------- */
+.matrix-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+table.matrix {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+  width: max-content;
+  min-width: 100%;
+}
+table.matrix th,
+table.matrix td {
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+/* Header row (dates) sticks to the top */
+table.matrix thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #eef2f7;
+  color: var(--navy-700);
+  padding: 9px 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-align: center;
+}
+table.matrix thead th.date-col {
+  cursor: pointer;
+  text-transform: capitalize;
+}
+table.matrix thead th.date-col:hover { background: #dde6f1; }
+/* First column (task labels) sticks to the left */
+.corner, .task-cell {
+  position: sticky;
+  left: 0;
+  background: var(--card);
+  z-index: 1;
+  text-align: left;
+  font-weight: 500;
+  padding: 8px 14px 8px 12px;
+  min-width: 220px;
+  max-width: 320px;
+}
+.corner {
+  z-index: 3;
+  background: #eef2f7;
+  font-weight: 700;
+}
+.room-row .room-cell {
+  position: sticky;
+  left: 0;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 7px 12px;
+  letter-spacing: .2px;
+}
+td.cell {
+  text-align: center;
+  padding: 6px 10px;
+  min-width: 64px;
+}
+td.cell .chk {
+  color: var(--green);
+  font-weight: 800;
+  font-size: 16px;
+}
+table.matrix tbody tr:hover td.cell { background: #f6f8fb; }
+
 /* ----------------------------- Sticky actions ----------------------------- */
 .sticky-actions {
   position: fixed;
