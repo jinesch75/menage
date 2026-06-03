@@ -67,10 +67,8 @@ $$(".tab").forEach((btn) =>
 
 /* ====================== NOUVELLE SÉANCE ====================== */
 function renderNew() {
-  const filter = $("#new-search").value.trim().toLowerCase();
   const list = $("#new-list");
-  const visible = actions.filter((a) => !filter || a.label.toLowerCase().includes(filter));
-  const groups = groupByRoom(visible);
+  const groups = groupByRoom(actions);
 
   if (!actions.length) {
     list.innerHTML =
@@ -101,6 +99,7 @@ function renderNew() {
         cb.checked ? selected.add(a.id) : selected.delete(a.id);
         row.classList.toggle("checked", cb.checked);
         updateCount();
+        scheduleAutosave();
       });
       body.appendChild(row);
     }
@@ -109,6 +108,7 @@ function renderNew() {
       items.forEach((a) => (turnOn ? selected.add(a.id) : selected.delete(a.id)));
       renderNew();
       updateCount();
+      scheduleAutosave();
     });
     list.appendChild(card);
   }
@@ -118,11 +118,71 @@ function updateCount() {
   $("#sel-count").textContent = selected.size;
 }
 
-$("#new-search").addEventListener("input", renderNew);
 $("#clear-sel").addEventListener("click", () => {
   selected.clear();
   renderNew();
   updateCount();
+  scheduleAutosave();
+});
+
+// Title that reflects the chosen date's weekday, e.g. "… pour jeudi".
+function frenchWeekday(iso) {
+  if (!iso) return "";
+  return new Date(iso + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long" });
+}
+function sessionTitle() {
+  const wd = frenchWeekday($("#sess-date").value);
+  return "Liste de tâches ménagères pour " + wd;
+}
+function updateHeading() {
+  $("#new-title").textContent = sessionTitle().trim();
+}
+
+/* --------- Auto-save: each change is persisted to the date's session --------- */
+let autosaveTimer = null;
+function setStatus(msg) {
+  $("#save-status").textContent = msg;
+}
+function scheduleAutosave() {
+  setStatus("Enregistrement…");
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(autosaveNow, 500);
+}
+async function autosaveNow() {
+  const date = $("#sess-date").value;
+  if (!date) return;
+  try {
+    await api("PUT", `/api/sessions/by-date/${date}`, {
+      title: sessionTitle(),
+      actionIds: [...selected],
+    });
+    setStatus("Enregistré ✓");
+    if ($("#tab-history").classList.contains("is-active")) loadHistory();
+  } catch (e) {
+    setStatus("Échec de l'enregistrement");
+  }
+}
+
+// Load the existing list saved for the chosen date (so editing continues it).
+async function loadCurrentForDate() {
+  const date = $("#sess-date").value;
+  selected.clear();
+  if (date) {
+    try {
+      const data = await api("GET", `/api/sessions/by-date/${date}`);
+      for (const it of data.items) if (it.action_id) selected.add(it.action_id);
+      setStatus(data.session ? "Enregistré ✓" : "");
+    } catch (e) {
+      setStatus("");
+    }
+  }
+  renderNew();
+  updateCount();
+}
+
+$("#sess-date").addEventListener("change", () => {
+  updateHeading();
+  loadCurrentForDate();
 });
 
 /* ----------------------------- Print ----------------------------- */
@@ -134,8 +194,7 @@ $("#print-btn").addEventListener("click", () => {
 
 function buildPrintArea() {
   const date = $("#sess-date").value;
-  const title = $("#sess-title").value.trim() || "Liste de ménage";
-  const note = $("#sess-note").value.trim();
+  const title = sessionTitle();
   const chosen = actions.filter((a) => selected.has(a.id));
   const groups = groupByRoom(chosen);
 
@@ -157,32 +216,10 @@ function buildPrintArea() {
         <span><b>Date :</b> ${date ? frenchDate(date) : "____________________"}</span>
         <span><b>Tâches :</b> ${chosen.length}</span>
       </div>
-      ${note ? `<div class="print-note"><b>Note :</b> ${escapeHtml(note)}</div>` : ""}
     </div>
     <div class="print-rooms">${rooms}</div>
     <div class="print-footer">Liste de ménage — à cocher pendant la séance</div>`;
 }
-
-/* ----------------------------- Save ----------------------------- */
-$("#save-btn").addEventListener("click", async () => {
-  if (!selected.size) return toast("Sélectionnez au moins une tâche.");
-  try {
-    await api("POST", "/api/sessions", {
-      date: $("#sess-date").value || undefined,
-      title: $("#sess-title").value,
-      note: $("#sess-note").value,
-      actionIds: [...selected],
-    });
-    toast("Séance enregistrée ✓");
-    selected.clear();
-    $("#sess-title").value = "";
-    $("#sess-note").value = "";
-    renderNew();
-    updateCount();
-  } catch (e) {
-    toast(e.message);
-  }
-});
 
 /* ====================== BIBLIOTHÈQUE ====================== */
 function renderLibrary() {
@@ -359,15 +396,24 @@ async function loadActions() {
   actions = await api("GET", "/api/actions");
 }
 
+// Local YYYY-MM-DD (avoids the UTC off-by-one that showed yesterday's date).
+function localISO(d) {
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
 async function boot() {
-  $("#sess-date").value = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  $("#sess-date").value = localISO(tomorrow);
+  updateHeading();
   try {
     await loadActions();
+    await loadCurrentForDate();
   } catch (e) {
     toast("Connexion à la base impossible.");
+    renderNew();
+    updateCount();
   }
-  renderNew();
-  updateCount();
 }
 
 boot();

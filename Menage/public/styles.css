@@ -234,6 +234,14 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-colo
   z-index: 15;
 }
 .sticky-actions .btn { min-width: 160px; }
+.save-status {
+  align-self: center;
+  font-size: 13px;
+  color: var(--green);
+  font-weight: 600;
+  min-width: 130px;
+  text-align: right;
+}
 
 /* ----------------------------- Modal ----------------------------- */
 .modal {

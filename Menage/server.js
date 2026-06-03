@@ -146,6 +146,98 @@ app.post(
   })
 );
 
+// Auto-save: find the (latest) session for a given date, with its items.
+app.get(
+  "/api/sessions/by-date/:date",
+  wrap(async (req, res) => {
+    const s = await pool.query(
+      "SELECT id, session_date, title FROM sessions WHERE session_date = $1 ORDER BY id DESC LIMIT 1",
+      [req.params.date]
+    );
+    if (!s.rows.length) return res.json({ session: null, items: [] });
+    const items = await pool.query(
+      "SELECT id, action_id, label, room, position, done FROM session_items WHERE session_id = $1 ORDER BY room, position, id",
+      [s.rows[0].id]
+    );
+    res.json({ session: s.rows[0], items: items.rows });
+  })
+);
+
+// Auto-save: sync the chosen actions for a date. Creates the session if needed,
+// deletes it if the selection becomes empty, and preserves "done" flags on kept items.
+app.put(
+  "/api/sessions/by-date/:date",
+  wrap(async (req, res) => {
+    const date = req.params.date;
+    const title = (req.body.title || "").trim() || null;
+    const actionIds = (Array.isArray(req.body.actionIds) ? req.body.actionIds : [])
+      .map(Number)
+      .filter(Number.isInteger);
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      let s = await client.query(
+        "SELECT id FROM sessions WHERE session_date = $1 ORDER BY id DESC LIMIT 1",
+        [date]
+      );
+      let sessionId = s.rows.length ? s.rows[0].id : null;
+
+      // Empty selection: remove the session entirely so history stays clean.
+      if (!actionIds.length) {
+        if (sessionId) await client.query("DELETE FROM sessions WHERE id = $1", [sessionId]);
+        await client.query("COMMIT");
+        return res.json({ session: null, items: [] });
+      }
+
+      if (!sessionId) {
+        const ins = await client.query(
+          "INSERT INTO sessions (session_date, title) VALUES ($1, $2) RETURNING id",
+          [date, title]
+        );
+        sessionId = ins.rows[0].id;
+      } else {
+        await client.query("UPDATE sessions SET title = $1 WHERE id = $2", [title, sessionId]);
+      }
+
+      // Remove items that are no longer selected.
+      await client.query(
+        "DELETE FROM session_items WHERE session_id = $1 AND (action_id IS NULL OR action_id <> ALL($2::int[]))",
+        [sessionId, actionIds]
+      );
+
+      // Add newly selected actions (snapshot label/room), skipping ones already present.
+      const existing = await client.query(
+        "SELECT action_id FROM session_items WHERE session_id = $1",
+        [sessionId]
+      );
+      const have = new Set(existing.rows.map((r) => r.action_id));
+      const toAdd = await client.query(
+        "SELECT id, label, room, position FROM actions WHERE id = ANY($1::int[]) ORDER BY room, position, id",
+        [actionIds.filter((id) => !have.has(id))]
+      );
+      for (const act of toAdd.rows) {
+        await client.query(
+          "INSERT INTO session_items (session_id, action_id, label, room, position) VALUES ($1, $2, $3, $4, $5)",
+          [sessionId, act.id, act.label, act.room, act.position]
+        );
+      }
+
+      const items = await client.query(
+        "SELECT id, action_id, label, room, position, done FROM session_items WHERE session_id = $1 ORDER BY room, position, id",
+        [sessionId]
+      );
+      await client.query("COMMIT");
+      res.json({ session: { id: sessionId }, items: items.rows });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  })
+);
+
 // Get one session with its items.
 app.get(
   "/api/sessions/:id",

@@ -24,7 +24,7 @@
       <section id="tab-new" class="panel is-active">
         <div class="panel-head">
           <div>
-            <h1>Nouvelle séance</h1>
+            <h1 id="new-title">Liste de tâches ménagères</h1>
             <p class="muted">Cochez les tâches à effectuer, puis imprimez la liste.</p>
           </div>
         </div>
@@ -33,16 +33,9 @@
           <label>Date
             <input type="date" id="sess-date" />
           </label>
-          <label>Titre (optionnel)
-            <input type="text" id="sess-title" placeholder="ex. Ménage hebdomadaire" />
-          </label>
-          <label class="grow">Note pour la personne (optionnel)
-            <input type="text" id="sess-note" placeholder="ex. insister sur la cuisine" />
-          </label>
         </div>
 
         <div class="toolbar">
-          <input type="search" id="new-search" placeholder="Rechercher une tâche…" />
           <span class="count"><b id="sel-count">0</b> tâche(s) sélectionnée(s)</span>
           <button class="btn ghost" id="clear-sel">Tout décocher</button>
         </div>
@@ -50,8 +43,8 @@
         <div id="new-list" class="rooms"></div>
 
         <div class="sticky-actions">
+          <span class="save-status" id="save-status"></span>
           <button class="btn primary" id="print-btn">🖨️ Imprimer</button>
-          <button class="btn" id="save-btn">Enregistrer la séance</button>
         </div>
       </section>
 
