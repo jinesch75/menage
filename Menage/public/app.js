@@ -370,11 +370,8 @@ function openListForDate(date) {
   updateHeading();
   loadCurrentForDate();
 }
-
-// Keep the matrix fresh while it is being viewed.
-setInterval(() => {
-  if ($("#tab-history").classList.contains("is-active")) loadHistory();
-}, 4000);
+// The table reloads whenever you open the "Listes précédentes" tab (see switchTab),
+// so it is always current without any background polling.
 
 /* ------------------------------ Boot ------------------------------ */
 async function loadActions() {
