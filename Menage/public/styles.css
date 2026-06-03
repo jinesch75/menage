@@ -64,6 +64,19 @@ main { max-width: 920px; margin: 0 auto; padding: 22px 16px 120px; }
 
 .panel-head { margin-bottom: 16px; }
 h1 { font-size: 24px; margin: 0 0 2px; color: var(--navy-700); }
+
+.title-line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.title-line h1 { margin: 0; }
+.title-date {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 7px 10px;
+}
 .muted { color: var(--muted); margin: 0; font-size: 14px; }
 
 /* ----------------------------- Inputs ----------------------------- */
