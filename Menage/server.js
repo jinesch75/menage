@@ -148,6 +148,32 @@ app.post(
   })
 );
 
+// Reorder rooms: rewrite positions 0..n in the given order.
+app.put(
+  "/api/rooms/reorder",
+  wrap(async (req, res) => {
+    const orderedNames = (Array.isArray(req.body.orderedNames) ? req.body.orderedNames : []).map(
+      (s) => String(s)
+    );
+    if (!orderedNames.length) return res.status(400).json({ error: "orderedNames requis." });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      let pos = 0;
+      for (const name of orderedNames) {
+        await client.query("UPDATE rooms SET position = $1 WHERE name = $2", [pos++, name]);
+      }
+      await client.query("COMMIT");
+      res.json({ ok: true });
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  })
+);
+
 // Rename a room everywhere (rooms table + library tasks + past-list snapshots).
 app.put(
   "/api/rooms/rename",

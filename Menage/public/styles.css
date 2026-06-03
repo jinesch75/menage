@@ -161,6 +161,21 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-colo
 }
 .room-body { padding: 6px 8px; }
 .room-name { display: inline-flex; align-items: center; gap: 6px; }
+.room-move { display: inline-flex; gap: 2px; }
+.room-move button {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--navy-700);
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 9px;
+  line-height: 1;
+  padding: 0;
+}
+.room-move button:hover:not(:disabled) { background: #dde6f1; }
+.room-move button:disabled { opacity: .3; cursor: default; }
 .room-rename, .room-del {
   border: none;
   background: transparent;

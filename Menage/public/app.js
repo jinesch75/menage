@@ -87,14 +87,24 @@ function renderNew() {
     return;
   }
 
-  for (const room of rooms) {
+  rooms.forEach((room, rIdx) => {
     const items = actions.filter((a) => a.room === room);
     const allChecked = items.length > 0 && items.every((a) => selected.has(a.id));
     const card = document.createElement("div");
     card.className = "room-card";
+    card.dataset.room = room;
     card.innerHTML = `
       <div class="room-title">
-        <span class="room-name">${escapeHtml(room)}
+        <span class="room-name">
+          <span class="room-move">
+            <button class="room-up" type="button" title="Monter la pièce" aria-label="Monter la pièce" ${
+              rIdx === 0 ? "disabled" : ""
+            }>▲</button>
+            <button class="room-down" type="button" title="Descendre la pièce" aria-label="Descendre la pièce" ${
+              rIdx === rooms.length - 1 ? "disabled" : ""
+            }>▼</button>
+          </span>
+          ${escapeHtml(room)}
           <button class="room-rename" type="button" title="Renommer la pièce" aria-label="Renommer">✎</button>
           <button class="room-del" type="button" title="Supprimer la pièce" aria-label="Supprimer la pièce">🗑</button>
         </span>
@@ -166,6 +176,8 @@ function renderNew() {
 
     $(".room-rename", card).addEventListener("click", () => renameRoom(room));
     $(".room-del", card).addEventListener("click", () => deleteRoom(room));
+    $(".room-up", card).addEventListener("click", () => moveRoom(rIdx, -1));
+    $(".room-down", card).addEventListener("click", () => moveRoom(rIdx, +1));
 
     const addInput = $(".add-task-input", card);
     const submitTask = () => {
@@ -183,11 +195,11 @@ function renderNew() {
     });
 
     list.appendChild(card);
-  }
+  });
 
   if (focusAddRoom) {
     const card = [...list.querySelectorAll(".room-card")].find(
-      (c) => $(".room-title span", c) && $(".room-title span", c).textContent === focusAddRoom
+      (c) => c.dataset.room === focusAddRoom
     );
     if (card) $(".add-task-input", card).focus();
     focusAddRoom = null;
@@ -281,6 +293,28 @@ async function deleteRoom(room) {
     if (hadSelected) scheduleAutosave();
   } catch (e) {
     toast(e.message);
+  }
+}
+
+// Move a room up (-1) or down (+1) in the list.
+function moveRoom(idx, delta) {
+  const rooms = roomsInOrder();
+  const j = idx + delta;
+  if (j < 0 || j >= rooms.length) return;
+  [rooms[idx], rooms[j]] = [rooms[j], rooms[idx]];
+  reorderRooms(rooms);
+}
+
+// Apply a new room order: update locally for instant feedback, then persist.
+async function reorderRooms(orderedNames) {
+  roomList = orderedNames.slice();
+  renderNew();
+  try {
+    await api("PUT", "/api/rooms/reorder", { orderedNames });
+  } catch (e) {
+    toast(e.message);
+    await loadRooms();
+    renderNew();
   }
 }
 
