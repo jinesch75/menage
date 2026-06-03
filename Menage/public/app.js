@@ -87,17 +87,17 @@ function renderNew() {
     card.innerHTML = `
       <div class="room-title">
         <span class="room-name">
-          <span class="room-move">
+          ${escapeHtml(room)}
+          <span class="room-tools">
             <button class="room-up" type="button" title="Monter la pièce" aria-label="Monter la pièce" ${
               rIdx === 0 ? "disabled" : ""
             }>▲</button>
             <button class="room-down" type="button" title="Descendre la pièce" aria-label="Descendre la pièce" ${
               rIdx === rooms.length - 1 ? "disabled" : ""
             }>▼</button>
+            <button class="room-rename" type="button" title="Renommer la pièce" aria-label="Renommer">✎</button>
+            <button class="room-del" type="button" title="Supprimer la pièce" aria-label="Supprimer la pièce">🗑</button>
           </span>
-          ${escapeHtml(room)}
-          <button class="room-rename" type="button" title="Renommer la pièce" aria-label="Renommer">✎</button>
-          <button class="room-del" type="button" title="Supprimer la pièce" aria-label="Supprimer la pièce">🗑</button>
         </span>
         ${
           items.length
@@ -480,9 +480,12 @@ function renderMatrix(data) {
   let html =
     '<table class="matrix"><thead><tr><th class="corner">Tâche</th>';
   for (const s of data.sessions) {
-    html += `<th class="date-col" data-date="${s.date}" title="${escapeHtml(
+    html += `<th class="date-col" data-date="${s.date}" data-id="${s.id}" title="${escapeHtml(
       s.title || ""
-    )} — cliquer pour rouvrir">${escapeHtml(shortDate(s.date))}</th>`;
+    )} — cliquer pour rouvrir">
+      <span class="date-label">${escapeHtml(shortDate(s.date))}</span>
+      <button class="sess-del" type="button" title="Supprimer cette liste" aria-label="Supprimer cette liste">✕</button>
+    </th>`;
   }
   html += "</tr></thead><tbody>";
 
@@ -504,9 +507,16 @@ function renderMatrix(data) {
   html += "</tbody></table>";
   wrap.innerHTML = html;
 
-  $$(".matrix .date-col").forEach((th) =>
-    th.addEventListener("click", () => openListForDate(th.dataset.date))
-  );
+  $$(".matrix .date-col").forEach((th) => {
+    th.addEventListener("click", (e) => {
+      if (e.target.closest(".sess-del")) return; // delete button handled separately
+      openListForDate(th.dataset.date);
+    });
+    $(".sess-del", th).addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteSession(th.dataset.id, th.dataset.date);
+    });
+  });
 }
 
 // Click a date column -> go back to the generator with that day's list loaded.
@@ -515,6 +525,17 @@ function openListForDate(date) {
   $("#sess-date").value = date;
   updateHeading();
   loadCurrentForDate();
+}
+
+// Delete a whole saved list (a date column).
+async function deleteSession(id, date) {
+  if (!confirm(`Supprimer la liste du ${frenchDate(date)} ?`)) return;
+  try {
+    await api("DELETE", `/api/sessions/${id}`);
+    loadHistory();
+  } catch (e) {
+    toast(e.message);
+  }
 }
 // The table reloads whenever you open the "Listes précédentes" tab (see switchTab),
 // so it is always current without any background polling.

@@ -160,38 +160,34 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-colo
   align-items: center;
 }
 .room-body { padding: 6px 8px; }
-.room-name { display: inline-flex; align-items: center; gap: 6px; }
-.room-move { display: inline-flex; gap: 2px; }
-.room-move button {
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--navy-700);
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 9px;
-  line-height: 1;
-  padding: 0;
+.room-name { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Room tools (move / rename / delete) — hidden until you hover the room */
+.room-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity .15s;
 }
-.room-move button:hover:not(:disabled) { background: #dde6f1; }
-.room-move button:disabled { opacity: .3; cursor: default; }
-.room-rename, .room-del {
+.room-card:hover .room-tools,
+.room-title:focus-within .room-tools { opacity: 1; }
+.room-tools button {
   border: none;
   background: transparent;
   cursor: pointer;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1;
   padding: 3px 5px;
   border-radius: 5px;
-  color: var(--muted);
-  opacity: 0;
-  transition: opacity .15s, background .15s, color .15s;
+  transition: background .15s, color .15s, opacity .15s;
 }
-.room-card:hover .room-rename,
-.room-card:hover .room-del { opacity: 1; }
-.room-rename:hover { background: #dde6f1; color: var(--navy-700); }
-.room-del:hover { background: #fdecea; color: var(--danger); }
+.room-tools .room-up,
+.room-tools .room-down { font-size: 10px; }
+.room-tools button:hover:not(:disabled) { background: #dde6f1; color: var(--navy-700); }
+.room-tools button:disabled { opacity: .3; cursor: default; }
+.room-tools .room-del:hover { background: #fdecea; color: var(--danger); }
 
 .task {
   display: flex;
@@ -378,6 +374,23 @@ table.matrix thead th.date-col {
   text-transform: capitalize;
 }
 table.matrix thead th.date-col:hover { background: #dde6f1; }
+.date-col .date-label { display: block; }
+.date-col .sess-del {
+  display: inline-block;
+  margin-top: 3px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity .15s, background .15s, color .15s;
+}
+.date-col:hover .sess-del { opacity: 1; }
+.date-col .sess-del:hover { background: #fdecea; color: var(--danger); }
 /* First column (task labels) sticks to the left */
 .corner, .task-cell {
   position: sticky;
