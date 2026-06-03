@@ -306,7 +306,23 @@ app.get(
       await pool.query("SELECT session_id, label, room, position, done FROM session_items")
     ).rows;
 
+    // Current ordering from the main page: room order from the rooms table,
+    // task order from the active actions. Anything historical (deleted rooms/
+    // tasks) sorts after, so the matrix matches the generator page.
+    const roomOrder = new Map(
+      (await pool.query("SELECT name, position FROM rooms")).rows.map((r) => [r.name, r.position])
+    );
     const SEP2 = "|~|";
+    const taskOrder = new Map(
+      (
+        await pool.query("SELECT room, label, position FROM actions WHERE active = TRUE")
+      ).rows.map((a) => [a.room + SEP2 + a.label, a.position])
+    );
+    const BIG = Number.MAX_SAFE_INTEGER;
+    const roomRank = (room) => (roomOrder.has(room) ? roomOrder.get(room) : BIG);
+    const taskRank = (room, label) =>
+      taskOrder.has(room + SEP2 + label) ? taskOrder.get(room + SEP2 + label) : BIG;
+
     const rowMap = new Map(); // room|label -> {room, label, minPos}
     const cells = {};
     for (const it of items) {
@@ -319,7 +335,9 @@ app.get(
     const rows = [...rowMap.values()]
       .sort(
         (a, b) =>
+          roomRank(a.room) - roomRank(b.room) ||
           a.room.localeCompare(b.room, "fr") ||
+          taskRank(a.room, a.label) - taskRank(b.room, b.label) ||
           a.minPos - b.minPos ||
           a.label.localeCompare(b.label, "fr")
       )
