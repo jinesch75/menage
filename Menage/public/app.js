@@ -45,6 +45,39 @@ function frenchDate(iso) {
 let actions = [];
 const selected = new Set();
 
+/* ------------------------------ Place ------------------------------ */
+const PLACES = ["Appartement Aumetz", "Maison Aumetz"];
+let currentPlace = (() => {
+  try {
+    const p = localStorage.getItem("menage_place");
+    if (PLACES.includes(p)) return p;
+  } catch (_) {}
+  return PLACES[0];
+})();
+// Append the current place to a GET url.
+const placeQ = () => "?place=" + encodeURIComponent(currentPlace);
+// Add the current place to a request body.
+const withPlace = (body) => Object.assign({ place: currentPlace }, body || {});
+
+async function setPlace(p) {
+  if (!PLACES.includes(p) || p === currentPlace) return;
+  currentPlace = p;
+  try {
+    localStorage.setItem("menage_place", p);
+  } catch (_) {}
+  selected.clear();
+  setStatus("");
+  try {
+    await reloadRoomsAndActions();
+    await loadCurrentForDate();
+  } catch (e) {
+    toast("Connexion à la base impossible.");
+    renderNew();
+    updateCount();
+  }
+  if ($("#tab-history").classList.contains("is-active")) loadHistory();
+}
+
 /* ------------------------------ Tabs ------------------------------ */
 function switchTab(name) {
   $$(".tab").forEach((b) => b.classList.toggle("is-active", b.dataset.tab === name));
@@ -216,7 +249,7 @@ async function reorderRoom(room, orderedIds) {
   ordered.forEach((a, i) => (a.position = i));
   renderNew();
   try {
-    await api("PUT", "/api/actions/reorder", { room, orderedIds });
+    await api("PUT", "/api/actions/reorder", withPlace({ room, orderedIds }));
   } catch (e) {
     toast(e.message);
     await loadActions();
@@ -227,7 +260,7 @@ async function reorderRoom(room, orderedIds) {
 // Add a new task to a room.
 async function addActionToRoom(label, room) {
   try {
-    await api("POST", "/api/actions", { label, room });
+    await api("POST", "/api/actions", withPlace({ label, room }));
     await reloadRoomsAndActions();
     renderNew();
   } catch (e) {
@@ -258,7 +291,7 @@ async function renameRoom(room) {
   const newRoom = input.trim();
   if (!newRoom || newRoom === room) return;
   try {
-    await api("PUT", "/api/rooms/rename", { oldRoom: room, newRoom });
+    await api("PUT", "/api/rooms/rename", withPlace({ oldRoom: room, newRoom }));
     await reloadRoomsAndActions();
     renderNew();
   } catch (e) {
@@ -276,7 +309,7 @@ async function deleteRoom(room) {
 
   const hadSelected = items.some((a) => selected.has(a.id));
   try {
-    await api("DELETE", "/api/rooms", { room });
+    await api("DELETE", "/api/rooms", withPlace({ room }));
     items.forEach((a) => selected.delete(a.id));
     await reloadRoomsAndActions();
     renderNew();
@@ -301,7 +334,7 @@ async function reorderRooms(orderedNames) {
   roomList = orderedNames.slice();
   renderNew();
   try {
-    await api("PUT", "/api/rooms/reorder", { orderedNames });
+    await api("PUT", "/api/rooms/reorder", withPlace({ orderedNames }));
   } catch (e) {
     toast(e.message);
     await loadRooms();
@@ -317,7 +350,7 @@ async function addRoom() {
   input.value = "";
   focusAddRoom = name;
   try {
-    await api("POST", "/api/rooms", { name });
+    await api("POST", "/api/rooms", withPlace({ name }));
     await reloadRoomsAndActions();
     renderNew();
   } catch (e) {
@@ -370,10 +403,10 @@ async function autosaveNow() {
   const date = $("#sess-date").value;
   if (!date) return;
   try {
-    await api("PUT", `/api/sessions/by-date/${date}`, {
+    await api("PUT", `/api/sessions/by-date/${date}`, withPlace({
       title: sessionTitle(),
       actionIds: [...selected],
-    });
+    }));
     setStatus("Enregistré ✓");
     if ($("#tab-history").classList.contains("is-active")) loadHistory();
   } catch (e) {
@@ -387,7 +420,7 @@ async function loadCurrentForDate() {
   selected.clear();
   if (date) {
     try {
-      const data = await api("GET", `/api/sessions/by-date/${date}`);
+      const data = await api("GET", `/api/sessions/by-date/${date}` + placeQ());
       for (const it of data.items) if (it.action_id) selected.add(it.action_id);
       setStatus(data.session ? "Enregistré ✓" : "");
     } catch (e) {
@@ -462,7 +495,7 @@ function shortDate(iso) {
 async function loadHistory() {
   const wrap = $("#history-table");
   try {
-    const data = await api("GET", "/api/matrix");
+    const data = await api("GET", "/api/matrix" + placeQ());
     renderMatrix(data);
   } catch (e) {
     wrap.innerHTML = `<p class="empty">${escapeHtml(e.message)}</p>`;
@@ -542,10 +575,10 @@ async function deleteSession(id, date) {
 
 /* ------------------------------ Boot ------------------------------ */
 async function loadActions() {
-  actions = await api("GET", "/api/actions");
+  actions = await api("GET", "/api/actions" + placeQ());
 }
 async function loadRooms() {
-  roomList = await api("GET", "/api/rooms");
+  roomList = await api("GET", "/api/rooms" + placeQ());
 }
 async function reloadRoomsAndActions() {
   await Promise.all([loadRooms(), loadActions()]);
@@ -560,6 +593,8 @@ async function boot() {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   $("#sess-date").value = localISO(tomorrow);
+  $("#place-select").value = currentPlace;
+  $("#place-select").addEventListener("change", (e) => setPlace(e.target.value));
   updateHeading();
   try {
     await reloadRoomsAndActions();

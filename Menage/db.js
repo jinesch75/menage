@@ -21,9 +21,14 @@ const pool = new Pool({
   ssl: isLocal ? false : { rejectUnauthorized: false },
 });
 
+// The two fixed places, each with its own independent rooms/tasks/lists.
+const PLACES = ["Appartement Aumetz", "Maison Aumetz"];
+const DEFAULT_PLACE = PLACES[0];
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS actions (
   id        SERIAL PRIMARY KEY,
+  place     TEXT NOT NULL DEFAULT 'Appartement Aumetz',
   label     TEXT NOT NULL,
   room      TEXT NOT NULL DEFAULT 'Général',
   position  INTEGER NOT NULL DEFAULT 0,
@@ -33,13 +38,16 @@ CREATE TABLE IF NOT EXISTS actions (
 
 CREATE TABLE IF NOT EXISTS rooms (
   id        SERIAL PRIMARY KEY,
-  name      TEXT NOT NULL UNIQUE,
+  place     TEXT NOT NULL DEFAULT 'Appartement Aumetz',
+  name      TEXT NOT NULL,
   position  INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (place, name)
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
   id         SERIAL PRIMARY KEY,
+  place      TEXT NOT NULL DEFAULT 'Appartement Aumetz',
   session_date DATE NOT NULL,
   title      TEXT,
   note       TEXT,
@@ -63,13 +71,36 @@ CREATE INDEX IF NOT EXISTS idx_actions_room ON actions(room);
 async function init() {
   await pool.query(SCHEMA);
 
-  // Backfill the rooms table from any existing tasks (one-time, idempotent),
-  // so rooms created before this table existed are preserved.
+  // Migration for databases created before the "place" dimension existed:
+  // add the column (existing data defaults to 'Appartement Aumetz') and move
+  // the rooms uniqueness from (name) to (place, name).
+  await pool.query(
+    "ALTER TABLE actions  ADD COLUMN IF NOT EXISTS place TEXT NOT NULL DEFAULT 'Appartement Aumetz'"
+  );
+  await pool.query(
+    "ALTER TABLE rooms    ADD COLUMN IF NOT EXISTS place TEXT NOT NULL DEFAULT 'Appartement Aumetz'"
+  );
+  await pool.query(
+    "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS place TEXT NOT NULL DEFAULT 'Appartement Aumetz'"
+  );
   await pool.query(`
-    INSERT INTO rooms (name, position)
-    SELECT room, (ROW_NUMBER() OVER (ORDER BY room)) - 1
-    FROM (SELECT DISTINCT room FROM actions WHERE active = TRUE) d
-    ON CONFLICT (name) DO NOTHING
+    DO $$ BEGIN
+      IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'rooms_name_key') THEN
+        ALTER TABLE rooms DROP CONSTRAINT rooms_name_key;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'rooms_place_name_key') THEN
+        ALTER TABLE rooms ADD CONSTRAINT rooms_place_name_key UNIQUE (place, name);
+      END IF;
+    END $$;
+  `);
+
+  // Backfill the rooms table from any existing tasks (one-time, idempotent),
+  // so rooms created before this table existed are preserved (per place).
+  await pool.query(`
+    INSERT INTO rooms (place, name, position)
+    SELECT place, room, (ROW_NUMBER() OVER (PARTITION BY place ORDER BY room)) - 1
+    FROM (SELECT DISTINCT place, room FROM actions WHERE active = TRUE) d
+    ON CONFLICT (place, name) DO NOTHING
   `);
 
   // Optional one-time seed (default OFF — library starts empty).
@@ -81,13 +112,13 @@ async function init() {
       let roomPos = 0;
       for (const group of seed) {
         await pool.query(
-          "INSERT INTO rooms (name, position) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING",
-          [group.room, roomPos++]
+          "INSERT INTO rooms (place, name, position) VALUES ($1, $2, $3) ON CONFLICT (place, name) DO NOTHING",
+          [DEFAULT_PLACE, group.room, roomPos++]
         );
         for (const label of group.actions) {
           await pool.query(
-            "INSERT INTO actions (label, room, position) VALUES ($1, $2, $3)",
-            [label, group.room, pos++]
+            "INSERT INTO actions (place, label, room, position) VALUES ($1, $2, $3, $4)",
+            [DEFAULT_PLACE, label, group.room, pos++]
           );
         }
       }
@@ -96,4 +127,4 @@ async function init() {
   }
 }
 
-module.exports = { pool, init };
+module.exports = { pool, init, PLACES, DEFAULT_PLACE };
